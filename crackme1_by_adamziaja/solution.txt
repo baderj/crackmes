@@ -1,0 +1,198 @@
+Solution to crackme1 by adamziaja
+=================================
+(problem published 14. May 2014)
+
+Start by running the program:
+
+    $ ./crackme1
+    username:
+    Peter
+    username must be between 8 and 12! 
+    username:
+    Big Head 
+    serial number:
+    1234
+    WRONG!
+
+Searching for string ``WRONG!`` leads to the following lines of disassembly: 
+    00401380                 cvtsi2sd xmm0, eax
+    00401384                 movsd   xmm1, [rbp+var_2F8]
+    0040138C                 ucomisd xmm0, xmm1
+    00401390                 jp      short loc_4013B6
+    00401392                 ucomisd xmm0, xmm1
+    00401396                 jnz     short loc_4013B6
+    00401398                 mov     esi, offset aSNOk ; "s/n OK!"
+    0040139D                 mov     edi, offset _ZSt4cout@@GLIBCXX_3_4
+    004013A2                 call    __ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc 
+    004013A7                 mov     esi, offset __ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_ 
+    004013AC                 mov     rdi, rax
+    004013AF                 call    __ZNSolsEPFRSoS_E 
+    004013B4                 jmp     short loc_4013D2
+    004013B6 ; ---------------------------------------------------------------------------
+    004013B6
+    004013B6 loc_4013B6:                             ; CODE XREF: main+303j
+    004013B6                                         ; main+309j
+    004013B6                 mov     esi, offset aSNWrong ; "s/n WRONG!
+
+In line 00401392 the SSE registers ``xmm0`` and ``xmm1`` are compared.
+If they are not equal, then the next line (``jnz     short loc_4013B6``)
+causes the program to jump to ``loc_4013B6`` which prints ``WRONG!``. If, on
+the other hand, the two registers are equal, then the flow continues
+on line 00401398 which prints ``OK!``. So we are looking for inputs that 
+lead to ``xmm0 = xmm1`` in line 0x401396.
+
+Next, we open the executable in a 64 debugger. I used GDB on a 64bit 
+Linux host. First, set a breakpoint at line 0x401396:
+
+    $ gdb ./crackme1 -silent
+    Reading symbols from ./crackme1...done.
+    (gdb) break *0x401396
+    Breakpoint 1 at 0x401396: file main.cpp, line 42.
+
+Now run the code and enter a username and serial. 
+
+    (gdb) run
+    Starting program: /home/phreak/privat/clones/crackmes/crackme1 
+    username:
+    01234567
+    serial number:
+    771
+
+    Breakpoint 1, 0x0000000000401396 in main () at main.cpp:42
+    42	main.cpp: No such file or directory.
+
+The execution stops right at ``jnz   short loc_4013B6`` (before actually
+executing the line). Let's print ``xmm0`` and ``xmm1``:
+
+    (gdb) p $xmm0
+    $1 = {v4_float = {5.62949953e+14, 16.8905296, 0, 3.57331108e-43}, 
+        v2_double = {48495051, 5.4110892669614444e-312}, 
+        v16_int8 = {0, 0, 0, 88, -50, 31, -121, 65, 0, 0, 0, 0, -1, 0, 0, 0}, 
+        v8_int16 = {0, 22528, 8142, 16775, 0, 0, 255, 0}, v4_int32 = {
+            1476395008, 1099374542, 0, 255}, 
+        v2_int64 = {4721777705421373440, 1095216660480}, 
+        uint128 = 0x000000ff0000000041871fce58000000}
+    (gdb) p $xmm1
+    $2 = {v4_float = {0, 4.25292969, 0, 0}, 
+        v2_double = {771, 0}, 
+        v16_int8 = {0, 0, 0, 0, 0, 24, -120, 64, 0, 0, 0, 0, 0, 0, 0, 0}, 
+        v8_int16 = {0, 0, 6144, 16520, 0, 0, 0, 0}, 
+        v4_int32 = {0, 1082660864, 0, 0}, 
+        v2_int64 = {4649993003539103744, 0}, 
+        uint128 = 4649993003539103744}
+
+The instruction to compare the two SSE registers is ``ucomisd``, which 
+compares the *low double-precision floating-point values*, i.e., the first
+value in ``v2_double`` in the above output:
+    
+    xmm0 = 48495051
+    xmm1 = 771
+
+We see that the serial was copied to xmm1, while xmm0 is probably based
+on the username. We see that ``xmm0`` contains the number 48, 49, 50, 51. 
+Those are the ASCII codes for the characters ``0``, ``1``, ``2``, and ``3``
+respectively. So the we can formulate the following first assumption
+for the validation algorithm:
+
+Version 1
+---------------------------------------------------------------------
+Concatenate the ASCII codes of the letters of the username and take
+the first 8 bytes of the result:
+
+    def keygen_version1(username):
+        key = '' 
+        for u in username:
+            key += str(ord(u))
+        return key[:8]
+----------------------------------------------------------------------
+
+Let's run the code again within gdb and enter a different username. 
+Note that the value of ``xmm0`` comes from ``eax`` in line 00401380, 
+so we can also check the value of ``eax``:
+
+    username:
+    abcdefgh
+    serial number:
+    979899100
+
+    Breakpoint 1, 0x0000000000401396 in main () at main.cpp:42
+    42	main.cpp: No such file or directory.
+
+    (gdb) p $eax
+    $1 = 97669968
+
+Interesting! So version 1 of the keygen is obviously not correct. While 97 and
+99 are as expected (ASCII codes of 'a' and 'c'), the two other numbers 66 and 68
+are exactly 32 lower than the codes for 'b' and 'd'. Substracting 32 from the 
+ASCII codes of the lower case characters gives the upper case version. So 
+the *crackme1* is probably converting the even character to
+upper case.
+
+Let's run the same experiment with an all uppercase username:
+
+    username:
+    ABCDEFGH
+    serial number:
+    979899100
+
+
+    Breakpoint 1, 0x0000000000401396 in main () at main.cpp:42
+    42	main.cpp: No such file or directory.
+
+    (gdb) p $eax
+    $1 = 97669968
+
+From this we can see that the code is actually also converting the odd
+characters to lower-case. This leads to version 2 of the keygen 
+algorithm:
+
+Version 2
+---------------------------------------------------------------------
+Convert every odd character of the username to lower case, and every 
+even character to upper case. Then concatenate the ASCII codes of the 
+letters and take the first 8 bytes of the result:
+
+    def keygen_version2(username):
+        for i, u in enumerate(username):
+            if i%2:
+                key += str(ord(u.upper()))
+            else:
+                key += str(ord(u.lower()))
+        return key[:8]
+----------------------------------------------------------------------
+
+Finally, let's test usernames that are longer than 8 characters to
+see what happens:
+
+    username: abcdefgh --> serial number: 97669968
+    username: abcdefghi --> serial number: 66996810
+    username: abcdefghij --> serial number: 99681017
+    username: abcdefghijk --> serial number: 68101701
+    username: abcdefghijkl -->  serial number: 10170103
+
+So the serial number always has 8 digits, but those are no longer the
+first 8 bytes of the concatenation for longer usernames. Doing some 
+more testing we find that the algorithms takes:
+
+bytes 0-7  for  8 character usernames
+bytes 2-9  for  9 character usernames
+bytes 4-11 for 10 character usernames
+bytes 6-13 for 11 character usernames
+bytes 8-15 for 12 character usernames
+
+So the final keygen algorithm is:
+
+Final Keygen
+----------------------------------------------------------------------
+    def generate_key(username):
+        if not 8 <= len(username) <= 12:
+            print("username must be between 8 and 12 characters.")
+            quit()
+        key = '' 
+        for i, u in enumerate(username):
+            if i%2:
+                key += str(ord(u.upper()))
+            else:
+                key += str(ord(u.lower()))
+        return int(key[2*(len(username)-8):][0:8])
+----------------------------------------------------------------------
