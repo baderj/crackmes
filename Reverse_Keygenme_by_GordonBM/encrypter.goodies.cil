@@ -1,0 +1,223 @@
+.namespace Encrypter.Goodies            // DATA XREF: ran+2Br sub_550+6w
+{
+.class private auto ansi beforefieldinit Engine extends [mscorlib]System.Object
+{
+  .field private class [mscorlib]System.Random random
+
+
+  .method public hidebysig instance string pump(string str, bool check)
+                                        // CODE XREF: button1_Click+25p
+  {
+    .maxstack 5
+    .locals init (char[] V0,
+                  string[] V1,
+                  string V2,
+                  int32 V3,
+                  string V4,
+                  bool V5)
+    nop
+    ldarg.1
+    callvirt instance char[] [mscorlib]System.String::ToCharArray()
+    stloc.0
+    ldloc.0
+    ldlen
+    conv.i4
+    newarr   [mscorlib]System.String
+    stloc.1
+    ldstr    ""
+    stloc.2
+    ldarg.2
+    ldc.i4.0
+    ceq
+    stloc.s  5
+    ldloc.s  5
+    brtrue.s loc_4A1                    // branch if check is FALSE
+    nop
+    ldc.i4.0
+    stloc.3
+    br.s     loc_48F
+
+loc_466:                                // CODE XREF: pump+5Cj
+    nop
+    ldloc.1
+    ldloc.3
+    ldloc.0
+    ldloc.3
+    ldelem.u2
+    conv.r8
+    ldarg.0
+    ldarg.1
+    callvirt instance int32 [mscorlib]System.String::get_Length()
+    call     instance float64 Encrypter.Goodies.Engine::ran(int32 l)
+    add
+    call     string [mscorlib]System.Convert::ToString(float64)
+    stelem.ref
+    ldloc.2
+    ldloc.1
+    ldloc.3
+    ldelem.ref
+    call     string [mscorlib]System.String::Concat(string, string)
+    stloc.2
+    nop
+    ldloc.3
+    ldc.i4.1
+    add
+    stloc.3
+
+loc_48F:                                // CODE XREF: pump+24j
+    ldloc.3
+    ldarg.1
+    callvirt instance int32 [mscorlib]System.String::get_Length()
+    clt
+    stloc.s  5
+    ldloc.s  5
+    brtrue.s loc_466
+    nop
+    br.s     loc_4D1
+
+loc_4A1:                                // CODE XREF: pump+1Fj
+    nop                                 // simple version
+    ldc.i4.0
+    stloc.3
+    br.s     loc_4C1
+
+loc_4A6:                                // CODE XREF: pump+8Ej
+    nop
+    ldloc.1
+    ldloc.3
+    ldloc.0
+    ldloc.3
+    ldelem.u2
+    call     string [mscorlib]System.Convert::ToString(int32)
+    stelem.ref
+    ldloc.2
+    ldloc.1
+    ldloc.3
+    ldelem.ref
+    call     string [mscorlib]System.String::Concat(string, string)
+    stloc.2
+    nop
+    ldloc.3
+    ldc.i4.1
+    add
+    stloc.3
+
+loc_4C1:                                // CODE XREF: pump+64j
+    ldloc.3
+    ldarg.1
+    callvirt instance int32 [mscorlib]System.String::get_Length()
+    clt
+    stloc.s  5
+    ldloc.s  5
+    brtrue.s loc_4A6
+    nop
+
+loc_4D1:                                // CODE XREF: pump+5Fj
+    ldloc.2
+    stloc.s  4
+    br.s     loc_4D6
+
+loc_4D6:
+    ldloc.s  4
+    ret
+  }
+
+  .method private hidebysig instance float64 ran(int32 l) // CODE XREF: pump+34p
+  {
+    .maxstack 5
+    .locals init (float64 V0,
+                  int32 V1,
+                  float64 V2,
+                  bool V3)
+    nop
+    ldc.r8   0.0
+    stloc.0
+    ldc.i4.0
+    stloc.1
+    br.s     loc_53A
+
+loc_4EF:                                // CODE XREF: ran+62j
+    nop
+    ldloc.1
+    ldc.i4.2
+    rem
+    ldc.i4.0
+    ceq
+    ldc.i4.0
+    ceq
+    stloc.3
+    ldloc.3
+    brtrue.s loc_522
+    nop
+    ldloc.0
+    ldloc.0
+    ldc.r8   2.0
+    mul
+    ldarg.0
+    ldfld    class [mscorlib]System.Random Encrypter.Goodies.Engine::random
+    ldc.i4.0
+    ldc.i4.2
+    callvirt instance int32 [mscorlib]System.Random::Next(int32, int32)
+    ldloc.1
+    ldc.i4.6
+    xor
+    mul
+    conv.r8
+    add
+    add
+    stloc.0
+    nop
+    br.s     loc_535
+
+loc_522:                                // CODE XREF: ran+1Bj
+    nop
+    ldloc.0
+    ldloc.0
+    ldc.r8   2.0
+    mul
+    ldc.i4.0
+    conv.r8
+    add
+    add
+    stloc.0
+    nop
+
+loc_535:                                // CODE XREF: ran+40j
+    nop
+    ldloc.1
+    ldc.i4.1
+    add
+    stloc.1
+
+loc_53A:                                // CODE XREF: ran+Dj
+    ldloc.1
+    ldarg.1
+    ldc.i4.2
+    mul
+    clt
+    stloc.3
+    ldloc.3
+    brtrue.s loc_4EF
+    ldloc.0
+    stloc.2
+    br.s     loc_548
+
+loc_548:
+    ldloc.2
+    ret
+  }
+
+  .method public hidebysig specialname rtspecialname instance void .ctor()
+                                        // CODE XREF: .ctor+1p
+  {
+    .maxstack 8
+    ldarg.0
+    newobj   instance void [mscorlib]System.Random::.ctor()
+    stfld    class [mscorlib]System.Random Encrypter.Goodies.Engine::random
+    ldarg.0
+    call     instance void [mscorlib]System.Object::.ctor()
+    nop
+    ret
+  }
+}
+}
