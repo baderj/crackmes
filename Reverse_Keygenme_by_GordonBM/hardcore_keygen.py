@@ -3,7 +3,7 @@
    (hardcore mode)"""
 import argparse
 
-ASCII_RANGE = (ord('A'), ord('z'))
+ASCII_RANGE = [32, 126] 
 
 def ran_values(length, values=None, pos=0, val=0):
     """get all potential random values for length as list """
@@ -26,35 +26,15 @@ def ran_values(length, values=None, pos=0, val=0):
 
     return sorted(values)
 
-def generate_len_db(limit):
-    """generate a list of mean key lengths for all msg lengths
+def guess_length(key):
+    """get the best guess for the length of the message based on hardcoded 
+       mean key lengths"""
 
-        Args:
-            limit: up to which msg length should the mean be calculated
-        Returns:
-            a list of mean key lengths, index i corresponds to msg length i
-    """
-    len_db = []
-    noise_values = set()
-    mean_off = sum(ASCII_RANGE)/float(2)
-    for i in range(0,limit):
-        noise_values = ran_values(i)
-        mean_val = 0
-        for noise in noise_values:
-            char = noise + mean_off
-            mean_val += len(str(char))
-        mean_val *= i
-        mean_val /= len(noise_values)
-        len_db.append(mean_val)
-    return len_db
-
-def guess_length(crypt, len_db):
-    """get the best guess for the length of the message based on mean
-       key lengths in len_db"""
-    len_msg = len(crypt)
+    len_db = [0,2,5,9,16,23,33,44,56,72,90,110,132,156,182]
+    len_msg = len(key)
     diffs = [abs(c-len_msg) for c in len_db]
     val, idx = min((val, idx) for (idx, val) in enumerate(diffs))
-    return (idx+1, val)
+    return (idx, val)
 
 
 def brute_force(crypt, msg_len, noises, pos=0, res=""):
@@ -79,15 +59,16 @@ def brute_force(crypt, msg_len, noises, pos=0, res=""):
                 msg_char = chr(code - noise)
                 concat = res + msg_char
                 if pos+span >= len(crypt):
-                    print(concat)
+                    if len(concat) == msg_len:
+                        print(concat)
+                    else:
+                        pass # string does not match expected nr of chars
                 else:
                     brute_force(crypt, msg_len, noises, pos+span, concat)
 
 def crack(key):
     """crack the key"""
-    # len_db = generate_len_db(15)
-    len_db = [0, 4, 9, 15, 24, 33, 45, 58, 72, 90, 110, 132, 172, 203, 227]
-    msg_len, error = guess_length(key, len_db)
+    msg_len, error = guess_length(key)
     print("message length is probably {}, (delta {})".format(msg_len, error))
     noise = ran_values(msg_len)
     print("there are {} different noise values".format(len(noise)))
