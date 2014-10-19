@@ -89,8 +89,8 @@ print_key_combinations(keys)
 """ 
     Bytes 4-5: Version Needed to Extract 
 """
-p = [0x14, 0x00]     # ZIP local file header signature
-c = [0x94, 0xa0]     # First four bytes of ciphertext
+p = [0x14, 0x00]     # version needed to extract 
+c = [0x94, 0xa0]     # 5th and 6th byte of ciphertext
 keys += PotentialMasterKeys(p, c, 2)
 print_key_combinations(keys)
 
@@ -98,8 +98,8 @@ print_key_combinations(keys)
 """ 
     Bytes 6-7: General Purpose Bit Flag   
 """
-p = [0x00, 0x00]     # ZIP local file header signature
-c = [0x17, 0xad]     # First four bytes of ciphertext
+p = [0x00, 0x00]     # general purpose bit flag   
+c = [0x17, 0xad]     # 6th and 7th byte of ciphertext
 keys += PotentialMasterKeys(p, c, 2)
 print_key_combinations(keys)
 
@@ -231,11 +231,8 @@ keys = [[0x7f],[0x17],[0x1b],[0x12],[0x54],[0x08,0x10],[0x56],[0x3f],
 
 
 data = read_file('../ciphertext/crackme.zip.enc')[4:]
-for i, m in enumerate(itertools.product(*keys)):
-    if i != 104:
-        # Skip to the correct key - to crack for real remove the check
-        continue
-    print "testing key {}...".format(i),
+for i, m in enumerate(itertools.product(*keys)):    
+    print "testing key {}...".format(i), 
     plaintext = DecryptFile(data, m)
     write_file('tmp.zip', plaintext)
     try:

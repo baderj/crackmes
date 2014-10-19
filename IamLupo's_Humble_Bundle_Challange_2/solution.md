@@ -1,7 +1,10 @@
 # Finding Master Keys
+
 I`m using Python to decrypt the challenge, you can find the script with all steps in ``./scripts/crack.py``.
 
+
 ## Bytes 0-3: Local File Header Signature
+
 These are the first few bytes of the ciphertext:
 
      0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
@@ -16,11 +19,11 @@ These are the first few bytes of the ciphertext:
     e9 19 c1 94 b8 4d d0 7a 4e f4 12 dd ac c4 b4 f5
     ?  ?  ?  ?  ?  M  ?  z  N  ?  ?  ?  ?  ?  ?  ?
 
-The first four Bytes come from the encryption routine:
+The first four bytes ``/ENC`` are constant magic number written by this line: 
 
     fwrite("/ENC", sizeof(char), 4, output_file);
 
-the remaining bytes are the encrypted data: 
+The remaining bytes are the encrypted data. When I'm referring to the ciphertext I'm speaking of the bytes *without*  ``/ENC``, i.e.:
 
      0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 
     ad 62 1e 10 94 a0 17 ad 81 64 2e 7f b9 cc 59 77 
@@ -34,29 +37,29 @@ the remaining bytes are the encrypted data:
     b8 4d d0 7a 4e f4 12 dd ac c4 b4 f5 7a b9 72 19 
     ?  M  ?  z  N  ?  ?  ?  ?  ?  ?  ?  z  ?  r  ? 
 
-The encryption works with a blocksize of 16 bytes, so let's start with the first 16 Bytes. From the name of the encrypted file ``crackme.zip.enc`` we can guess that the ciphertext is a ZIP file. We know that the first four Bytes of a ZIP file are always ``50 4B 03 05``according to the ZIP format specification https://www.pkware.com/documents/APPNOTE/APPNOTE-6.3.0.TXT. Let's see how the encryption routine turns this known plaintext into ciphertext:
+From the name of the encrypted file ``crackme.zip.enc`` we can guess that the ciphertext is a ZIP file. We know that the first four Bytes of a ZIP file are always ``50 4B 03 05``according to the ZIP format specification https://www.pkware.com/documents/APPNOTE/APPNOTE-6.3.0.TXT. Let's see how the encryption routine turns this known plaintext into ciphertext:
 
     for(unsigned int i = 0; i < 16; i++) {
         data[i] ^= generate_key[i];
     }
 
-So therefore:
+The encryption is a simple synchronous stream cipher with a blocksize of 16 bytes. For instance, for the first four bytes of the ciphertext we have: 
 
-                        1  2  3  4
+                        0  1  2  3
         plaintext:     50 4b 03 04
     XOR generate_key:  ?? ?? ?? ??
     --------------------------------
         ciphertext     ad 62 1e 10 
 
-which leads to the following ``generate_key`` (for the first block):
+The unknown ``generate_key`` for the first block of 16 bytes is therefore:
 
-                        1  2  3  4
+                        0  1  2  3
         plaintext:     50 4b 03 04
     XOR ciphertext     ad 62 1e 10 
     --------------------------------
         generate_key:  fd 29 1d 14 
 
-The ``generate_key`` is modified after each block of 16 Bytes by calling ``GenerateKey``. The result is based on a ``master_key``. How do we get this master key? The steps that lead to the ``generate_key`` - or *g* for short -  of the first block are:
+The ``generate_key`` is modified after each block of 16 Bytes by calling ``GenerateKey``. The result is based on a ``master_key``. How do we get this master key? The steps that lead to the ``generate_key`` of the first block are:
 
 	for(unsigned int i = 0; i < 16; i++) {
         ...
@@ -65,7 +68,7 @@ The ``generate_key`` is modified after each block of 16 Bytes by calling ``Gener
 	GenerateKey(master_key, generate_key);
 	GenerateKey(master_key, generate_key);
    
-To get to the ``master_key``, we need to reverse ``GenerateKey``:
+To get to the ``master_key`` we need to reverse ``GenerateKey``:
 
     void GenerateKey(unsigned char* master_key, unsigned char* generate_key) {
         char shuffle[16] = { 0x8, 0xA, 0x0, 0x1, 0x9, 0xC, 0xF, 0x3, 0x6, 0x2, 0xD, 0xE, 0x4, 0x2, 0x5, 0x7 };
@@ -82,8 +85,7 @@ To get to the ``master_key``, we need to reverse ``GenerateKey``:
         }
     }
 
-This function does a lot of shuffeling around and it would be tedious to write a routine that reverses the function. Fortunately, the function operates one character at a time: the value ``generate_key[i]`` depends only on the initial value of ``generate_key[i]`` and ``master_key[i]`` - the other elements of ``generate_key`` and ``master_key`` have no influence on ``generate_key[i]``. Also, the transformation is the same for all elements of ``generate_key`` - we can therefore rewrite the function as:
-
+This function does a lot of shuffling around and it would be tedious to write a routine that reverses the function. Fortunately, the function operates one character at a time: the value ``generate_key[i]`` depends only on the initial value of ``generate_key[i]`` and ``master_key[i]`` - the other elements of ``generate_key`` and ``master_key`` have no influence on ``generate_key[i]``. Also, the transformation is the same for all elements of ``generate_key``. Let's rewrite the function as:
 
     unsigned char TransformByte(unsigned char mc, unsigned char gc) {
         char shuffle[16] = { 0x8, 0xA, 0x0, 0x1, 0x9, 0xC, 0xF, 0x3, 0x6, 0x2, 0xD, 0xE, 0x4, 0x2, 0x5, 0x7 };
@@ -102,7 +104,7 @@ This function does a lot of shuffeling around and it would be tedious to write a
         }
     }
 
-To reverse ``TransformByte`` we only need to calculate the result for all 256 potential values of the master key character given the initial ``generate_key``, then compare the result to the desired ``generate_key`` result and see if they match. Of course we can do multiple iterations of ``GenerateKey`` too:
+To reverse ``TransformByte`` we only need to calculate the result for all 256 potential values of the master key character given the initial ``generate_key``, then compare the result to the desired ``generate_key`` result and see if they match. Of course we can easily reverse multiple iterations of ``GenerateKey`` too. The following ``PotentialMasterKeys`` generates all master keys for a given plaintext-ciphertext-pair and the nr of iteration (the number of times ``GenerateKey`` was called to generate the ``generate_key`` used to encrypt the plaintext):
 
     def reverseTransformByte(gc_before, gc_after, nr_iterations):
         valid_mc = []
@@ -132,6 +134,8 @@ To reverse ``TransformByte`` we only need to calculate the result for all 256 po
             keys.append(r)
         return keys
 
+Let's run ``PotentialMasterKeys`` on our known plaintext (the four bytes from the ZIP header signature) and the corresponding ciphertext: 
+
     keys = []
 
     p = [0x50, 0x4B, 0x03, 0x04]     # ZIP local file header signature
@@ -140,10 +144,11 @@ To reverse ``TransformByte`` we only need to calculate the result for all 256 po
     keys += PotentialMasterKeys(p, c, 2)
     print_key_combinations(keys)
 
-The codes gives multiple choices for all four bytes of the master key::
-
+The routine calculates multiple choices for all four bytes of the master key::
 
     {73,7f,93,eb}  {17,b7}  {1b,cf,d3,db}  {12,e2} 
+
+All 4*2*4*2 master key combinations turn our four byte plaintext into the ciphertext of the challenge. 
 
 ## Bytes 4-5: Version Needed to Extract 
 The next two bytes of a ZIP represent the version needed to extract. Ignoring all versions that indicate encryption leaves us with the following versions:
@@ -162,11 +167,10 @@ The next two bytes of a ZIP represent the version needed to extract. Ignoring al
     6.3 - File is encrypted using Blowfish
     6.3 - File is encrypted using Twofish
 
-At this point I'm taking an educated guess and assume the ZIP is compressed using the same setting used to compress the challenge folder: Version 2.0 or ``0x14 0x00`` in Hex. Using the same code as before gives:
+At this point I'm taking an educated guess by assuming the ZIP has been compressed using the same settings used to compress the challenge folder. The challenge zip folder has bytes ``0x14 0x00`` as the version (meaning Version 2.0). Using the same code as before gives:
 
-
-    p = [0x14, 0x00]     # ZIP local file header signature
-    c = [0x94, 0xa0]     # First four bytes of ciphertext
+    p = [0x14, 0x00]     # Version Needed to Extract 
+    c = [0x94, 0xa0]     # 5th and 6th byte of the ciphertext 
     keys += PotentialMasterKeys(p, c, 2)
     print_key_combinations(keys)
 
@@ -175,10 +179,12 @@ At this point I'm taking an educated guess and assume the ZIP is compressed usin
 
 Again we end up with multiple values for our masterkey.
 
-## Bytes 6-7: General Purpose Bit Flag   
-Again I'm assuming the ZIP was create with the same tool and setting as ``Humble_Bundle_Challenge_2.zip``. If it was, then the general Purpose bit flags are all zero: ``0x00 0x00``:
 
-    p = [0x00, 0x00]     # ZIP local file header signature
+## Bytes 6-7: General Purpose Bit Flag   
+
+The next two bytes of a ZIP file are the *general purpose bit flag*. Again I'm assuming the ZIP was created with the same tool and setting as ``Humble_Bundle_Challenge_2.zip``. If it was, then the general Purpose bit flags are all zero: ``0x00 0x00`` - most ZIP files don't have any flags set, so making this assumption isn't far fetched:
+
+    p = [0x00, 0x00]     # 
     c = [0x17, 0xad]     # First four bytes of ciphertext
     keys += PotentialMasterKeys(p, c, 2)
     print_key_combinations(keys)
@@ -188,16 +194,18 @@ Again I'm assuming the ZIP was create with the same tool and setting as ``Humble
     # OUTPUT:
     # ... 56 {3f,4f}
 
+
 ## Bytes 32-39 - File Name (from second character on)
-So far we managed to get candidates for the first 8 bytes of the master key. The problem is, we are already at 1280 combinations. Before moving on to the second half of the master key, let's try to narrow down the combinations we got so far. The first 8 bytes of the master key can be used to generate the next ``generate_key``, which can be used to decrypt bytes 16:23. These Bytes fall into the CRC-32, Compressed size and Uncompressed size. While we could definitely rule out some master keys resulting in implausible sizes, let's move on the next block at bytes 32:39 where we find an even better header value:
+
+So far we managed to get candidates for the first 8 bytes of the master key. The problem is, we are already at 1280 combinations. Before moving on to the second half of the master key, let's try to narrow down the number of combinations we got so far. The first 8 bytes of the master key can be used to generate the next ``generate_key``, which in turn can be used to decrypt bytes 16:23. These bytes fall into the ``CRC-32`` field,  the compressed size field and the uncompressed size field of the ZIP header. While we could definitely rule out some master keys resulting in implausible sizes, let's move on the next block at bytes 32:39 where we find an even better header value:
 
     Offset
     30	n	File name
 
-Since the file name is probably longer than 2 character it should span to the bytes 32+. Let's decrypt bytes 32 to 37 for all 1280 master key combinations and see which result looks like it is part of a filename. I make the assumption that the filename has an extension, and all characters are ASCII. There are two valid plaintext results: 
+Since the file name is probably longer than 2 character it should span to the bytes 32+. Let's decrypt bytes 32 to 37 for all 1280 master key combinations and see which result looks like it is part of a filename. I make the assumption that the filename has an extension, and all characters are ASCII. Therefore we have two valid plaintext types:
 
-1. The plaintext contains the "." character and all characters upto "." plus one extra character for the extension are ASCII
-2. The plaintext does not contain the "." character (the extension comes after Byte 37) and all decrypted characters must be ASCII.
+1. The plaintext contains the "." character and all characters up to "." plus one extra character (for the extension) are ASCII.
+2. The plaintext does not contain the "." character. This would mean the extension comes after byte 37 and all decrypted characters are part of the filename and must be ASCII. 
 
 The following routine checks those two cases:
 
@@ -213,9 +221,7 @@ The following routine checks those two cases:
             dot_index = s.index('.')
         return all(32 <= ord(c) <= 126 for c in s[:dot_index+2]) 
 
-The next code snippet iterates over all master key combinations, decrypts the ciphertext and then checks if the result is valid with ``is_part_of_ascii_filename``::
-
-
+The next code snippet iterates over all master key combinations, decrypts the ciphertext and then checks if the result is valid according to ``is_part_of_ascii_filename``:
 
     def decrypt(c, m, nr_iterations):
         g = []
@@ -223,7 +229,7 @@ The next code snippet iterates over all master key combinations, decrypts the ci
             g.append(TransformByte(0x00, mc, nr_iterations))
         return [gg ^ cc for gg, cc in zip(g, c)]
 
-    c = [0xb8, 0x4d, 0xd0, 0x7a, 0x4e, 0xf4, 0x12, 0xdd] # Bytes 32-37 of ciphertxt
+    c = [0xb8, 0x4d, 0xd0, 0x7a, 0x4e, 0xf4, 0x12, 0xdd] # Bytes 32-37 of ciphertext
     valid_names = set()
     for m in itertools.product(*keys):
         p = decrypt(c, m, 4)
@@ -269,9 +275,11 @@ Let's go with that result and see which master keys lead to ``ADME.txt``. By tak
 
     p = [ord(f) for f in "ADME.txt"]   # filename[2:] 
     c = [0xb8, 0x4d, 0xd0, 0x7a, 0x4e, 0xf4, 0x12, 0xdd] # Bytes 32-37 of ciphertxt
-    keys2 = PotentialMasterKeys(p, c, 4)
+    keys2 = PotentialMasterKeys(p, c, 4)                 # These master keys produce "ADME.txt"
     keys_intersection = []
 
+    """ ``keys`` at this point still contains the 1280 master key combinations
+        derived from the first 8 bytes of the ZIP header """
     for k1, k2 in zip(keys, keys2):
         keys_intersection.append(set(k1) & set(k2))
 
@@ -283,9 +291,10 @@ The output is:
 
 So we know all but the fifth byte of the first 8 master key bytes. 
 
-## Bytes 30-31: Start of Filename - "RE" 
-From the previous section we learned that bytes 30 and 31 are "RE". Those bytes are generated based on bytes 14 and 15 of the master key, for which we get 16 different combinations:
 
+## Bytes 30-31: Start of Filename - "RE" 
+
+From the previous section we learned that bytes 30 and 31 of the plaintext are "RE". Those bytes are generated based on bytes 14 and 15 of the master key, for which we get 16 different combinations:
 
     p = [ord(f) for f in "RE"]   # filename[:2]
     c = [0xc1, 0x94] # Bytes 30-31 of ciphertxt
@@ -295,8 +304,10 @@ From the previous section we learned that bytes 30 and 31 are "RE". Those bytes 
     # OUTPUT:
     # {20,50,56,70}  {39,8f,af,f9}
 
+
 ## Bytes 12-13: File Last Modification Date
-Bytes 12 and 13 represent the *file last modification date*. The crackme gives the hint **One important hint you need to crack this challange is that this challange originally started at 16 September 2014 - 07:20 AM.**, so we can assume that the ZIP content was created Sept. 16th 2014. The MS-DOS time for this date - in little endian order - is ``30 45``::
+
+Bytes 12 and 13 represent the *file last modification date*. The crackme gives the hint **One important hint you need to crack this challange is that this challange originally started at 16 September 2014 - 07:20 AM.**, so we can assume that the ZIP content was created Sept. 16th 2014. The MS-DOS time for this date - in little endian order - is ``30 45``:
 
     def time_and_date(d):
         t = d.timetuple()
@@ -320,8 +331,10 @@ This leads to the following bytes 12 and 13 of the master key:
     # OUTPUT:
     # {07,57}  {07,57}
 
+
 ## Bytes 28-29: Extra field length (m)
-Bytes 28 and 29 represent the length of the extra field. Given the four master key combinations from the previous section we get these potential values of the extra field:
+
+The previous section left us with 4 master key combinations. We can eliminate 3 of those by looking at the next block: Bytes 28 and 29 represent the length of the extra field. Given the four master key combinations from the previous section we get these potential values of the extra field:
 
     p = [0x30, 0x45] # Bytes 12-13: file last modification date
     c = [0xb9, 0xcc] # Bytes 12-13 of ciphertxt
@@ -337,9 +350,13 @@ Bytes 28 and 29 represent the length of the extra field. Given the four master k
     (['0x57', '0x7'], 0)
     (['0x57', '0x57'], 240)
 
-The ``Humble_Bundle_Challenge_2.zip`` doesn't have and extra field and the length is set to zero. By setting the master key bytes 12 and 13 to ``57 07`` we can get the same. 240 also seems like a valid extra field length, but it would be a huge coincidence that one of our four potential master key combos gives a master key length of 0 by chance.
+The ``Humble_Bundle_Challange_2.zip`` doesn't have an extra field and the length is set to zero. Setting the master key bytes 12 and 13 to ``57 07`` also results in an extra field length of 0. Although 240 also seems like a valid extra field length, it would be a huge coincidence that one of our four potential master key combos gives a master key length of 0 by chance. This fixes the master key bytes 12 an 13 to:
+
+    57 07
+
 
 ## Bytes 8-9: Compression method
+
 Bytes 8 and 9 represent the compression method. Removing the reserved choices gives the following potential values:
 
     0 - The file is stored (no compression)
@@ -417,10 +434,11 @@ For many compression method there isn't a master key that generates the cipherte
     19 - IBM LZ77 z Architecture (PFS)
     98 - PPMd version I, Rev 1
 
-Still, many combinations remain for bytes 8 and 9. 
+Still, many combinations remain for bytes 8 and 9. The next section allows us to filter the potential candidates.
 
 
 ## Bytes 22-25: Uncompressed Size
+
 The previous section gave many combinations for bytes 8 and 9 of the master key. We can reduce the number a little by looking at the next block, i.e., bytes 24 and 25. These two are the two most significant bytes of the four byte value ``uncompressed size``. Let's calculate the sizes that result from the master key combinations: 
 
 for cm in list(range(11)) + [12, 14, 18, 19, 97, 98]:
@@ -448,13 +466,12 @@ The output is:
     ....
 
 
-Many sizes are unreasonable, e.g., 2574 GB is way to large. I assuming the uncompressed size is at least as large as the compressed size, i.e, 360745 Bytes. I'm also assuming the compression rate was at most 90%, which gives a maximum uncompressed size of 360745*20. Adding this check::
+Many sizes are unreasonable, e.g., 2575 MB is way to large. Let's assume the compression rate was at most 90%, which gives a maximum uncompressed size of 360745*10. Adding the check:
 
-
-    if 360745 < size < 360745*20:
+    if size < 360745*10:
         print("Compression {}, Key {}: {} Mega Bytes".format(cm, m, size/1024/1024.0))
 
-leaves the following potential master keys:
+leaves the following potential master keys (the numbers in brackets are the master key values for bytes 6 to 9 in decimal notation):
 
     Compression 3, Key (86, 63, 213, 66): 2.0 Mega Bytes
     Compression 3, Key (86, 79, 213, 66): 2.05859375 Mega Bytes
@@ -467,7 +484,7 @@ leaves the following potential master keys:
     Compression 98, Key (86, 63, 170, 66): 2.1875 Mega Bytes
     Compression 98, Key (86, 79, 170, 66): 2.24609375 Mega Bytes
 
-For now I'm not considering compression 98: ``PPMd version I, Rev 1``, and compression 18 ``IBM TERSE (new)`` - these seem like a rare choice. So the choices for bytes 8 and 9 of the master key are:
+For now I'm not considering compression 98: ``PPMd version I, Rev 1``, and compression 18 ``IBM TERSE (new)`` - these seems like a rare choice. If in the end we don't have a master key that successfully decrypts the ZIP we can still come back and loosen the assumptions. For now, the choices for bytes 8 and 9 of the master key are:
 
     213, 66 
     87, 66
@@ -479,8 +496,10 @@ Or in Hex and using the set notation:
 
     {d5, 57, 5b, 63, aa} 42
 
+
 ## Bytes 26-27: File Name Length (n)
-So far we have information for all masterkey positions except bytes 10 and 11. Those two master key bytes affect byte 10,11 of the ciphertext, which represents the *file last modification time*. The crackme says when the challenge started, but we can't assume the ZIP was created at exactly that time. So let's have a look at the next block. Bytes 26 and 27 represent the *file name length (n)*. We already know the filename is probably ``README.TXT`` which has a length of 10 Bytes, or in little endian hex ``0x0A 0x00``. This leaves us with the following combinations for the master key bytes 10 and 11:
+
+So far we have information for all masterkey positions except bytes 10 and 11. Those two master key bytes affect byte 10,11 of the ciphertext, which represents the *file last modification time*. The crackme says when the challenge started, but we can't assume the ZIP was created at exactly that time. So let's have a look at the next block. Bytes 26 and 27 represent the *file name length (n)*. We already know the filename is probably ``README.TXT`` which has a length of 10 Bytes, or in little endian hex ``0x0A 0x00``. This gives the following combinations for the master key bytes 10 and 11:
 
     p = [len("README.TXT"), 0x0] # Bytes 26-27: file name length 
     c = [0x40, 0xb1] # Bytes 26-27 of ciphertxt
@@ -514,16 +533,18 @@ Neat! Only one combination leads to the file name length 10. Let's check if this
     # OUTPUT:
     # 2014-09-16 06:40:58
 
-Fair enough, the time stamp is valid and it is *before* 07:20. We now got information about all master key bytes and can start to brute force test the combinations 
+Good! The time stamp is valid and *before* 07:20. We now got information about all master key bytes and can start to brute force the combinations 
+
 
 # Testing Potential Master Keys
 
-## Summary
-For the first half of the master key we have the following two combinations::
+## Summary of What we Know about the Master Key
+
+For the first half of the master key we have the following two combinations:
 
     7f  17  1b  12  54  {08,10}  56  3f
 
-For bytes 8 and 9 we have:
+For bytes 8 and 9 we have 5 choices:
 
     {d5, 57, 5b, 63, aa} 42
 
@@ -531,7 +552,7 @@ For bytes 10 and 11 we know:
 
     3a  19
 
-Bytes 12 and 13 are
+Bytes 12 and 13 are:
 
     57 07
 
@@ -541,8 +562,10 @@ And the last two bytes 14 and 15 are one of the following 16 combinations:
 
 So in total we got 2*5*4*4 = 160 different master keys.
 
+
 ## Brute Forcing all 160 Combinations
-Which one of the 160 combinations is the correct one? I used a small, and slow, Python script to decrypt the ``crackme.zip.enc`` for all master keys and checked with ziplib if the resulting file was a valid ZIP:
+
+Which one of the 160 combinations is the correct one? I used a small (and very slow) Python script to decrypt the ``crackme.zip.enc`` for all master keys and checked with ziplib if the resulting file was a valid ZIP:
 
     def DecryptFile(data, master_key):
         def GenerateKey(master_key, generate_key):
