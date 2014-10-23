@@ -250,7 +250,7 @@ Let $n_i$, $c_i$ be the *i*th character of the name and code respectively, and l
 
 $$
 \begin{aligned}
-result &= \left(\sum_{i=0}^3 c_i \right) 4 n_3 + 3 n_2 + 2 n_1 + n_0 + C \\
+result &= \left(\sum_{i=0}^3 c_i \right) + 4 n_3 + 3 n_2 + 2 n_1 + n_0 + C \\
 rv &= \sum_{i=0}^3 n_i 
 \end{aligned}
 $$
