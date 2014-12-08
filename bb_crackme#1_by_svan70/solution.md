@@ -295,7 +295,8 @@ Solving the crackme is all about solving the following problem: given $e$, $c$ a
 $$
     m^e \equiv c \text{ mod } n
 $$
-In other words, we need to find the $e$th root of $c$ - which is hard in general. But we already noticed that our $e = 65537$ is a common choice for the public exponent in the RSA algorithm. This algorithm operates with moduli $n$ that have two prime factors. Let`s see if that is the case for our $n$. I'm using the free computer algebra system (PARI/GP)[http://pari.math.u-bordeaux.fr] to do the maths for me:
+In other words, we need to find the $e$th root of $c$ - which is hard in general. But we already noticed that our $e = 65537$ is a common choice for the public exponent in the RSA algorithm. This algorithm operates with moduli $n$ that have two prime factors. Let`s see if that is the case for our $n$. I'm using the free computer algebra system (PARI/GP)[^pari] to do the maths for me:
+
 
     ? factorint(4073628529)
     %1 = 
