@@ -1,0 +1,79 @@
+
+digraph G {
+    nodesep=0.3;
+    ranksep=0.2;
+    margin=0.1;
+    node [shape=circle];
+    edge [arrowsize=0.8];
+    graph [ordering="out"];
+     20 [label=i]
+     21 [label=g]
+     22 [label=a]
+     23 [label=g]
+     1 [label=r]
+     0 [label=e]
+     3 [label=l]
+     2 [label=T]
+     5 [label=v]
+     4 [label=S]
+     7 [label=i]
+     6 [label=n]
+     9 [label=F]
+     8 [label=N]
+     11 [label=l]
+     10 [label=n]
+     13 [label=l]
+     12 [label=r]
+     15 [label=e]
+     14 [label=e]
+     17 [label=i]
+     16 [label=c]
+     19 [label=o]
+     18 [label=s]
+    11 -> 12
+    1000 [label="."]
+    11 -> 1000
+    1001 [label="."]
+    10 -> 1001
+    10 -> 21
+    1002 [label="."]
+    13 -> 1002
+    13 -> 18
+    1003 [label="."]
+    12 -> 1003
+    12 -> 19
+    20 -> 22
+    1004 [label="."]
+    20 -> 1004
+    1005 [label="."]
+    22 -> 1005
+    22 -> 23
+    18 -> 20
+    1006 [label="."]
+    18 -> 1006
+    1 -> 5
+    1007 [label="."]
+    1 -> 1007
+    0 -> 2
+    0 -> 1
+    3 -> 11
+    3 -> 4
+    2 -> 9
+    2 -> 3
+    5 -> 8
+    5 -> 15
+    4 -> 7
+    4 -> 6
+    1008 [label="."]
+    7 -> 1008
+    7 -> 10
+    6 -> 17
+    6 -> 16
+    1009 [label="."]
+    9 -> 1009
+    9 -> 13
+    1010 [label="."]
+    8 -> 1010
+    8 -> 14
+
+}
